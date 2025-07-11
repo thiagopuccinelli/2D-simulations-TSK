@@ -1,0 +1,61 @@
+variable Told index 0.1
+variable Tnew index 0.1
+variable rho index 0.01
+variable filein index config_T_0.800.data 
+variable npart equal 10000
+variable lbox equal 0.5*((${npart}/${rho})^(1./2.))
+
+
+###### simulation 
+log run_T_${Tnew}.log
+units lj
+dimension 2
+atom_style molecular
+boundary p p p
+timestep 0.001
+
+read_data ${filein} #config_start.data
+
+fix 2dsim all enforce2d
+
+mass * 1.0
+
+pair_style table linear 4999
+pair_coeff 1 1 force_field_b_0.00.in CS_AA 3.5
+
+thermo_style custom step temp ke pe etotal press density
+thermo 1000
+
+
+velocity all create ${Tnew} 12345
+# ##### equilib
+fix 1 all nvt temp ${Tnew} ${Tnew} 0.1 
+
+run 5000000
+
+unfix 1
+
+###### production 
+
+fix 1 all nvt temp ${Tnew} ${Tnew} 0.1 
+
+reset_timestep 0
+
+dump img all custom 5000 traj_T_${Tnew}.lammpstrj id type x y z
+
+variable KIN equal ke
+variable POT equal pe
+variable PRESS equal press
+variable mydensity equal density
+
+fix my_thermo all ave/time 100 1 100 v_KIN v_POT v_PRESS v_mydensity file thermo_output_T_${Tnew}.dat
+
+####### MSD and VACF COMPUTATION 
+compute mymsd all msd
+compute myvacf all vacf
+
+fix output_MSD_VACF all ave/time 1 1 1  c_mymsd[4] c_myvacf[4] file msd_T_${Tnew}.dat
+
+run 5000000
+
+write_data config_T_${Tnew}.data nocoeff
